@@ -4,6 +4,9 @@ A simple FastAPI service that serves predictions from a machine-learning classif
 trained on the [Heart Disease dataset](https://www.kaggle.com/datasets/johnsmith88/heart-disease-dataset)
 (UCI Cleveland). It is containerized with Docker and ready to deploy on Render.
 
+**🔗 Live demo:** https://heartdisease.mirzashafi.com — try it at
+[`/docs`](https://heartdisease.mirzashafi.com/docs).
+
 > The goal of this project is to demonstrate Docker + deployment, not to maximize accuracy.
 
 ## Features / Endpoints
@@ -128,5 +131,7 @@ git push -u origin main
 
 ## Live Deployment URL
 
-> Add your Render URL here after deploying, e.g.
-> `https://heart-disease-api.onrender.com`
+🔗 **https://heartdisease.mirzashafi.com**
+
+- Swagger UI: https://heartdisease.mirzashafi.com/docs
+- Health: https://heartdisease.mirzashafi.com/health
