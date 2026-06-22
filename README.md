@@ -1,137 +1,136 @@
-# Heart Disease Prediction — FastAPI + Docker
+# Heart Disease Prediction API (Upgraded)
 
-A simple FastAPI service that serves predictions from a machine-learning classifier
-trained on the [Heart Disease dataset](https://www.kaggle.com/datasets/johnsmith88/heart-disease-dataset)
-(UCI Cleveland). It is containerized with Docker and ready to deploy on Render.
+An upgraded, production-ready FastAPI service that provides machine-learning predictions and explanations for heart disease presence based on clinical features.
 
-**🔗 Live demo:** https://heartdisease.mirzashafi.com — try it at
-[`/docs`](https://heartdisease.mirzashafi.com/docs).
+**🔗 Live demo:** [https://heartdisease.mirzashafi.com](https://heartdisease.mirzashafi.com)  
+**Swagger UI Docs:** [https://heartdisease.mirzashafi.com/docs](https://heartdisease.mirzashafi.com/docs)
 
-> The goal of this project is to demonstrate Docker + deployment, not to maximize accuracy.
+---
 
-## Features / Endpoints
+## 🚀 Upgraded Features
 
-| Method | Path       | Description                                   |
-|--------|------------|-----------------------------------------------|
-| GET    | `/health`  | Liveness check + whether the model is loaded  |
-| GET    | `/info`    | Model type, feature list, target, classes     |
-| POST   | `/predict` | Returns `heart_disease: true/false` + probability |
-| GET    | `/docs`    | Interactive Swagger UI                         |
+* **Relational Database Integration:** Persistent storage for user records, predictions, and clinical feedback using PostgreSQL (SQLAlchemy ORM).
+* **Automated Migrations:** Database schemas are managed via Alembic and applied automatically on application startup.
+* **Authentication & Authorization:** Secure endpoints (like history and feedback submission) using JWT (JSON Web Tokens) with a clean JSON registration/login payload.
+* **Explainability (SHAP):** Real-time prediction explanations using SHAP values showing feature importance for the Random Forest classifier.
+* **Asynchronous Processing:** Long-running batch predictions enqueued via Celery and Redis to prevent blocking the main event loop.
+* **Caching & Rate Limiting:** Endpoint response caching (via Redis & `fastapi-cache2`) and rate limiting (via `slowapi` to protect against spam).
+* **Structured JSON Logging:** Production-ready JSON logging for easy debugging and monitoring.
+* **Automated Pytest Suite:** End-to-end integration tests using a local SQLite configuration.
 
-## Project Structure
+---
 
-```
+## 🛠️ API Endpoints
+
+### Authentication
+* `POST /auth/register` - Register a new user (JSON body).
+* `POST /auth/login` - Obtain a JWT Bearer token (JSON body).
+
+### Predictions & Explainability
+* `POST /predict` - Single patient prediction (returns risk, confidence, recommendations; saves to DB). *Rate-limited to 10 requests/min.*
+* `POST /batch_predict` - Asynchronously predict a list of patients (enqueues a Celery task, returns `task_id`).
+* `POST /explain` - Interpret feature contributions using SHAP values.
+* `GET /predict/history` - Retrieve prediction history for the authenticated user (requires JWT).
+* `POST /feedback/{prediction_id}` - Submit clinical feedback (correct/incorrect) for a prediction (requires JWT).
+
+### Metrics & Metadata
+* `GET /model/info` - Expose model metadata (n_features, parameters, accuracy, f1 score).
+* `GET /stats/summary` - Aggregate predictions (total count, positive/negative rates, avg probability). *Cached for 60 seconds.*
+* `GET /health` - Liveness check and model load status.
+
+---
+
+## 📁 Project Structure
+
+```text
 .
 ├── app/
-│   ├── __init__.py
-│   ├── main.py          # FastAPI app + endpoints
-│   └── schemas.py       # Pydantic request/response models
-├── data/
-│   └── heart.csv        # Training data (303 rows, 13 features + target)
-├── model/
-│   └── heart_model.joblib   # Trained scikit-learn pipeline
-├── train.py             # Trains the model and saves it with joblib
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
+│   ├── api/             # API Routers (auth, predictions, explain, stats, model)
+│   ├── core/            # Configuration, logging, and JWT security setup
+│   ├── db/              # SQLAlchemy database setup, models, and session management
+│   ├── services/        # ML model loading (SHAP TreeExplainer, predictions)
+│   ├── main.py          # FastAPI application initialization & lifespan
+│   ├── schemas.py       # Pydantic request/response validation models
+│   └── worker.py        # Celery worker tasks
+├── alembic/             # Alembic database migration scripts
+├── data/                # Heart disease dataset
+├── model/               # Serialized ML model and training metrics JSON
+├── tests/               # Pytest suite (integration & end-to-end checks)
+├── Dockerfile           # Multi-stage production Docker image
+├── docker-compose.yml   # Multi-container local orchestration (App, Worker, Postgres, Redis)
+├── alembic.ini          # Alembic configuration
+├── requirements.txt     # Python dependencies
 └── README.md
 ```
 
-## Input Features
+---
 
-`age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal`
+## ⚙️ Environment Variables
 
-The target is binarized to presence (1) vs absence (0) of heart disease.
+The application can be configured using a `.env` file or environment variables:
 
-The model is a scikit-learn `Pipeline` of `StandardScaler` + `RandomForestClassifier`
-(~84% test accuracy).
+| Variable | Default Value | Description |
+|----------|---------------|-------------|
+| `DATABASE_URL` | `postgresql://user:password@localhost/db` | PostgreSQL connection string (Supabase/Neon/Local) |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis caching connection string |
+| `CELERY_BROKER_URL` | `redis://localhost:6379/1` | Redis broker URL for Celery |
+| `CELERY_RESULT_BACKEND` | `redis://localhost:6379/2` | Redis result backend for Celery |
+| `SECRET_KEY` | `YOUR_SUPER_SECRET_KEY` | Key to encrypt JWT access tokens |
+| `ALGORITHM` | `HS256` | JWT signing algorithm |
 
-## Run Locally (without Docker)
+---
 
+## 🏃 Run Locally
+
+### Using Docker Compose (Recommended)
+This spins up the FastAPI app, Celery worker, PostgreSQL, and Redis in a single command:
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-# (Optional) retrain the model — a trained model is already included.
-python train.py
-
-uvicorn app.main:app --reload --port 8000
+docker-compose up --build
 ```
+Access the interactive docs at: [http://localhost:8000/docs](http://localhost:8000/docs).
 
-Open http://localhost:8000/docs
+### Without Docker
+1. **Set up virtual environment:**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+2. **Setup environment:**
+   Copy `.env.example` to `.env` and fill in your connection strings (e.g. Supabase Postgres & Redis).
+3. **Run migrations:**
+   ```bash
+   alembic upgrade head
+   ```
+4. **Start the API:**
+   ```bash
+   uvicorn app.main:app --reload --port 8000
+   ```
 
-## Run with Docker Compose
+---
 
+## 🧪 Run Tests
+
+We use a local SQLite configuration to run tests with zero dependencies:
 ```bash
-docker compose build
-docker compose up
+DATABASE_URL="sqlite:///./test_temp.db" PYTHONPATH=. .venv/bin/pytest tests/ -vv
 ```
 
-Then visit http://localhost:8000/docs
+---
 
-Stop with `docker compose down`.
+## ☁️ Deploying to Render
 
-## Example Requests
-
-```bash
-# Health
-curl http://localhost:8000/health
-
-# Info
-curl http://localhost:8000/info
-
-# Predict
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-        "age": 63, "sex": 1, "cp": 3, "trestbps": 145, "chol": 233,
-        "fbs": 1, "restecg": 0, "thalach": 150, "exang": 0,
-        "oldpeak": 2.3, "slope": 0, "ca": 0, "thal": 1
-      }'
-```
-
-Sample response:
-
-```json
-{ "heart_disease": true, "probability": 0.6804 }
-```
-
-## Deploy on Render
-
-1. Push this project to a GitHub repository (see below).
-2. In the [Render dashboard](https://dashboard.render.com/), click
-   **New → Web Service** and connect your GitHub repo.
-3. Configure the service:
-   - **Language / Runtime:** `Docker`
-   - **Root Directory:** leave blank (the `Dockerfile` is at the repo root)
-   - **Instance Type:** Free is sufficient
-4. Click **Create Web Service**. Render builds the image from the `Dockerfile`.
-   The container listens on the `$PORT` Render injects (the `CMD` already handles this).
-5. Once live, test the public URL:
-
-```bash
-curl https://<your-service>.onrender.com/health
-curl https://<your-service>.onrender.com/info
-curl -X POST https://<your-service>.onrender.com/predict \
-  -H "Content-Type: application/json" \
-  -d '{"age":63,"sex":1,"cp":3,"trestbps":145,"chol":233,"fbs":1,"restecg":0,"thalach":150,"exang":0,"oldpeak":2.3,"slope":0,"ca":0,"thal":1}'
-```
-
-## Push to GitHub
-
-```bash
-git init
-git add .
-git commit -m "Heart Disease Prediction FastAPI + Docker"
-git branch -M main
-git remote add origin https://github.com/<your-username>/<your-repo>.git
-git push -u origin main
-```
-
-## Live Deployment URL
-
-🔗 **https://heartdisease.mirzashafi.com**
-
-- Swagger UI: https://heartdisease.mirzashafi.com/docs
-- Health: https://heartdisease.mirzashafi.com/health
+1. **Deploy Databases:**
+   * Create a **PostgreSQL** database on Render (or use Supabase/Neon). Copy the connection URI.
+   * Create a **Redis** instance on Render (or use Upstash). Copy the connection URI.
+2. **Deploy the FastAPI Web Service:**
+   * Create a new **Web Service** on Render.
+   * Connect your GitHub repository.
+   * Choose **Docker** as the runtime.
+   * Add the following **Environment Variables**:
+     * `DATABASE_URL` = `[Your PostgreSQL connection string]`
+     * `REDIS_URL` = `[Your Redis connection string]`
+     * `CELERY_BROKER_URL` = `[Your Redis connection string/1]`
+     * `CELERY_RESULT_BACKEND` = `[Your Redis connection string/2]`
+     * `SECRET_KEY` = `[Your custom random string]`
+3. **Launch:** Render will build the Docker container and start serving the API!
