@@ -20,6 +20,18 @@ from app.services.model_service import model_service
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting up FastAPI application...")
+    
+    # Run database migrations on startup
+    try:
+        logger.info("Running database migrations via Alembic...")
+        from alembic.config import Config
+        from alembic import command
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Database migrations completed successfully.")
+    except Exception as e:
+        logger.error(f"Error running database migrations: {e}")
+
     redis = aioredis.from_url(settings.REDIS_URL, encoding="utf8", decode_responses=True)
     FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
     yield

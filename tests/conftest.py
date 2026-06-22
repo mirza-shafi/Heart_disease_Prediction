@@ -16,9 +16,22 @@ celery_app.conf.update(
 
 @pytest.fixture(scope="session")
 def db_engine():
-    Base.metadata.create_all(bind=engine)
+    # Run database migrations to set up schema for testing
+    from alembic.config import Config
+    from alembic import command
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
     yield engine
-    Base.metadata.drop_all(bind=engine)
+    
+    # Clean up file-based SQLite database if used
+    import os
+    if settings.DATABASE_URL.startswith("sqlite:///"):
+        db_file = settings.DATABASE_URL.replace("sqlite:///", "")
+        if os.path.exists(db_file) and db_file not in ("", ":memory:"):
+            try:
+                os.remove(db_file)
+            except Exception:
+                pass
 
 @pytest.fixture(scope="function")
 def db_session(db_engine):
