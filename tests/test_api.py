@@ -39,7 +39,7 @@ def test_register_and_login(client):
     assert reg_response.json()["username"] == "testuser"
     
     # Login
-    login_response = client.post("/auth/login", data={
+    login_response = client.post("/auth/login", json={
         "username": "testuser",
         "password": "password123"
     })
