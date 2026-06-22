@@ -8,7 +8,7 @@ from app.db.database import Base
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
@@ -21,7 +21,7 @@ class Prediction(Base):
     __tablename__ = "predictions"
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True) # null for unauthenticated
+    user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=True) # null for unauthenticated
     
     # Input Features
     age = Column(Integer, nullable=False)
@@ -56,7 +56,7 @@ class Feedback(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     prediction_id = Column(Uuid(as_uuid=True), ForeignKey("predictions.id"), nullable=False, unique=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
     
     is_correct = Column(Boolean, nullable=False)
     comments = Column(String, nullable=True)

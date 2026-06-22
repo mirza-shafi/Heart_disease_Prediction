@@ -1,4 +1,5 @@
 import os
+import uuid
 from celery import Celery
 import pandas as pd
 from app.core.config import settings
@@ -14,7 +15,7 @@ celery_app = Celery(
 )
 
 @celery_app.task(name="batch_predict_task")
-def batch_predict_task(patients: list[dict], user_id: int = None):
+def batch_predict_task(patients: list[dict], user_id: uuid.UUID = None):
     db = SessionLocal()
     try:
         # We can optimize this by doing a single batch prediction if model_service supports it
