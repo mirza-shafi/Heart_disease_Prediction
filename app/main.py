@@ -1,71 +1,46 @@
-"""FastAPI application serving Heart Disease predictions."""
-from pathlib import Path
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from redis import asyncio as aioredis
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
-import joblib
-import pandas as pd
-from fastapi import FastAPI, HTTPException
+from app.core.config import settings
+from app.core.logger import logger
+from app.db.database import engine, Base
+from app.api.predictions import limiter
+from app.api import auth, predictions, explain, stats, model
+from app.schemas import HealthResponse
+from app.services.model_service import model_service
 
-from app.schemas import (
-    HealthResponse,
-    HeartFeatures,
-    InfoResponse,
-    PredictionResponse,
-)
+# Note: In a production app, use Alembic for migrations instead of create_all
+# Base.metadata.create_all(bind=engine)
 
-# Feature order must match the order used during training.
-FEATURE_ORDER = [
-    "age", "sex", "cp", "trestbps", "chol", "fbs", "restecg",
-    "thalach", "exang", "oldpeak", "slope", "ca", "thal",
-]
-
-MODEL_PATH = Path(__file__).resolve().parent.parent / "model" / "heart_model.joblib"
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting up FastAPI application...")
+    redis = aioredis.from_url(settings.REDIS_URL, encoding="utf8", decode_responses=True)
+    FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+    yield
+    logger.info("Shutting down FastAPI application...")
 
 app = FastAPI(
-    title="Heart Disease Prediction API",
+    title=settings.PROJECT_NAME,
     description="Predicts the presence of heart disease from clinical features.",
-    version="1.0.0",
+    version=settings.VERSION,
+    lifespan=lifespan
 )
 
-# Load the model once at startup.
-_model = None
-if MODEL_PATH.exists():
-    _model = joblib.load(MODEL_PATH)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-
-@app.get("/", tags=["root"])
-def root():
-    return {"message": "Heart Disease Prediction API. See /docs for usage."}
-
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(predictions.router, tags=["prediction"])
+app.include_router(explain.router, tags=["explain"])
+app.include_router(stats.router, prefix="/stats", tags=["stats"])
+app.include_router(model.router, prefix="/model", tags=["model"])
 
 @app.get("/health", response_model=HealthResponse, tags=["monitoring"])
 def health():
-    return HealthResponse(status="ok", model_loaded=_model is not None)
-
-
-@app.get("/info", response_model=InfoResponse, tags=["monitoring"])
-def info():
-    model_type = type(_model).__name__ if _model is not None else "not loaded"
-    return InfoResponse(
-        model_type=model_type,
-        features=FEATURE_ORDER,
-        n_features=len(FEATURE_ORDER),
-        target="heart_disease",
-        classes={"0": "absence", "1": "presence"},
-    )
-
-
-@app.post("/predict", response_model=PredictionResponse, tags=["prediction"])
-def predict(features: HeartFeatures):
-    if _model is None:
-        raise HTTPException(status_code=503, detail="Model is not loaded.")
-
-    row = features.model_dump()
-    X = pd.DataFrame([[row[name] for name in FEATURE_ORDER]], columns=FEATURE_ORDER)
-
-    pred = int(_model.predict(X)[0])
-    try:
-        proba = float(_model.predict_proba(X)[0][1])
-    except (AttributeError, IndexError):
-        proba = float(pred)
-
-    return PredictionResponse(heart_disease=bool(pred), probability=round(proba, 4))
+    return HealthResponse(status="ok", model_loaded=model_service.model is not None)

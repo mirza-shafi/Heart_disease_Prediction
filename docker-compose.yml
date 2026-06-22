@@ -1,10 +1,50 @@
+version: '3.8'
+
 services:
-  api:
+  web:
     build: .
-    image: heart-disease-api:latest
-    container_name: heart-disease-api
     ports:
       - "8000:8000"
+    env_file:
+      - .env.example
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  worker:
+    build: .
+    command: celery -A app.worker.celery_app worker --loglevel=info
+    env_file:
+      - .env.example
+    depends_on:
+      - redis
+      - db
+
+  db:
+    image: postgres:15-alpine
     environment:
-      - PORT=8000
-    restart: unless-stopped
+      POSTGRES_USER: heart_user
+      POSTGRES_PASSWORD: heart_password
+      POSTGRES_DB: heart_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U heart_user -d heart_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:

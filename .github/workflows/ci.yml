@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: heart_user
+          POSTGRES_PASSWORD: heart_password
+          POSTGRES_DB: heart_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    env:
+      DATABASE_URL: "postgresql://heart_user:heart_password@localhost:5432/heart_db"
+      REDIS_URL: "redis://localhost:6379/0"
+      CELERY_BROKER_URL: "redis://localhost:6379/1"
+      CELERY_RESULT_BACKEND: "redis://localhost:6379/2"
+      SECRET_KEY: "test_secret"
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: 'pip'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Run training to generate model and metrics
+      run: |
+        python train.py
+    - name: Run Alembic migrations
+      run: |
+        alembic upgrade head
+    - name: Run Pytest
+      run: |
+        pytest tests/ -v

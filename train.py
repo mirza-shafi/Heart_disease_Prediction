@@ -3,12 +3,13 @@
 Usage:
     python train.py
 """
+import json
 from pathlib import Path
 
 import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -52,12 +53,19 @@ def main() -> None:
 
     preds = model.predict(X_test)
     acc = accuracy_score(y_test, preds)
+    f1 = f1_score(y_test, preds)
     print(f"Test accuracy: {acc:.4f}")
+    print(f"Test F1 Score: {f1:.4f}")
     print(classification_report(y_test, preds, target_names=["absence", "presence"]))
 
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, MODEL_PATH)
     print(f"Saved model to {MODEL_PATH}")
+    
+    metrics_path = MODEL_DIR / "metrics.json"
+    with open(metrics_path, "w") as f:
+        json.dump({"accuracy": acc, "f1_score": f1}, f, indent=2)
+    print(f"Saved metrics to {metrics_path}")
 
 
 if __name__ == "__main__":
