@@ -80,7 +80,6 @@ class UserLogin(BaseModel):
 
 class Token(BaseModel):
     access_token: str
-    token_type: str
 
 class FeedbackCreate(BaseModel):
     is_correct: bool
