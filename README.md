@@ -109,14 +109,37 @@ Access the interactive docs at: [http://localhost:8000/docs](http://localhost:80
 
 ---
 
-## 🧪 Run Tests
+## 🧪 Testing
 
-We use a local SQLite configuration to run tests with zero dependencies:
+The project includes a robust suite of integration tests verifying all major endpoints, authentication logic, SHAP explains, and background worker executions.
+
+### Test Strategy
+* **Zero External Dependencies:** Runs tests using a local, temporary SQLite file database (`test_temp.db`), which is automatically created, migrated, and deleted at the end of the test session.
+* **Isolated Transactions:** Each test function runs within its own transaction (`connection.begin()`), which is automatically rolled back at the end of the test, ensuring a clean state for every test.
+* **Synchronous Celery Tasks:** Celery is configured in eager mode (`task_always_eager=True`) for testing, executing tasks in the same process synchronously so that background tasks and database updates can be verified immediately.
+
+### Run tests:
 ```bash
 DATABASE_URL="sqlite:///./test_temp.db" PYTHONPATH=. .venv/bin/pytest tests/ -vv
 ```
 
 ---
+
+## 📈 Observability & Logging
+
+To support production monitoring, debugging, and log aggregation tools (like Datadog, ELK Stack, or Render logs), the application implements structured JSON logging instead of plain text logs.
+
+### Features
+* **Machine-Readable Format:** All logs are serialized into structured JSON objects.
+* **Metadata Fields:** Each log entry automatically captures timestamps (`asctime`), log levels (`levelname`), the logger name (`name`), and the message (`message`).
+* **Stdout Stream:** Logs are streamed to standard output, adhering to twelve-factor app principles for container logging.
+
+### Example log output:
+```json
+{"asctime": "2026-06-23 02:05:12,123", "levelname": "INFO", "name": "app", "message": "Loaded model from /app/model/heart_model.joblib"}
+{"asctime": "2026-06-23 02:05:12,254", "levelname": "INFO", "name": "app", "message": "SHAP explainer initialized."}
+{"asctime": "2026-06-23 02:05:22,891", "levelname": "INFO", "name": "app", "message": "Running database migrations via Alembic..."}
+```
 
 ## ☁️ Deploying to Render
 
